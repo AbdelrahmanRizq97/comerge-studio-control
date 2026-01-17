@@ -1,6 +1,6 @@
 {
   "name": "@comergehq/studio-control",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Control channel for Comerge Studio UI",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
