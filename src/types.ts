@@ -20,6 +20,7 @@ export type StudioControlStorage = {
 
 export type StudioControlOptions = {
   commandKey?: string;
+  ackKey?: string;
   stateKey?: string;
   intervalMs?: number;
   source?: string;

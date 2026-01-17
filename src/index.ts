@@ -17,15 +17,19 @@ export type {
 } from './types';
 
 const DEFAULT_COMMAND_KEY = 'comerge:studio-control:command';
+const DEFAULT_ACK_KEY = 'comerge:studio-control:ack';
 const DEFAULT_STATE_KEY = 'comerge:studio-control:state';
 const DEFAULT_INTERVAL_MS = 300;
 
-type ResolvedOptions = Required<Pick<StudioControlOptions, 'commandKey' | 'stateKey' | 'intervalMs'>> &
+type ResolvedOptions = Required<
+  Pick<StudioControlOptions, 'commandKey' | 'ackKey' | 'stateKey' | 'intervalMs'>
+> &
   Pick<StudioControlOptions, 'source'>;
 
 function resolveOptions(options?: StudioControlOptions): ResolvedOptions {
   return {
     commandKey: options?.commandKey ?? DEFAULT_COMMAND_KEY,
+    ackKey: options?.ackKey ?? DEFAULT_ACK_KEY,
     stateKey: options?.stateKey ?? DEFAULT_STATE_KEY,
     intervalMs: options?.intervalMs ?? DEFAULT_INTERVAL_MS,
     source: options?.source,
@@ -78,7 +82,7 @@ async function writeCommand(
   try {
     await storage.setItem(resolved.commandKey, JSON.stringify(command));
   } catch {
-    // best-effort
+    
   }
 }
 
@@ -110,6 +114,7 @@ export function startStudioControlPolling(
 ): StudioControlPoller {
   const resolved = resolveOptions(options);
   let lastSeenId: string | null = null;
+  let ackInitialized = false;
   let stopped = false;
   let inFlight = false;
 
@@ -117,14 +122,28 @@ export function startStudioControlPolling(
     if (stopped || inFlight) return;
     inFlight = true;
     try {
+      if (!ackInitialized) {
+        const ackRaw = await storage.getItem(resolved.ackKey);
+        const ackValue = safeJsonParse<{ id: string }>(ackRaw);
+        if (ackValue?.id) {
+          lastSeenId = ackValue.id;
+        }
+        ackInitialized = true;
+      }
       const raw = await storage.getItem(resolved.commandKey);
       const parsed = safeJsonParse<StudioControlCommand>(raw);
       if (!isCommand(parsed)) return;
       if (parsed.id === lastSeenId) return;
       lastSeenId = parsed.id;
-      onCommand(parsed.action, parsed);
+      try {
+        onCommand(parsed.action, parsed);
+      } catch {
+        
+      }
+      await storage.setItem(resolved.ackKey, JSON.stringify({ id: parsed.id, ts: Date.now() }));
+      await storage.setItem(resolved.commandKey, '');
     } catch {
-      // best-effort
+      
     } finally {
       inFlight = false;
     }
@@ -154,7 +173,7 @@ export async function publishComergeStudioUIState(
   try {
     await storage.setItem(resolved.stateKey, JSON.stringify(state));
   } catch {
-    // best-effort
+    
   }
 }
 
