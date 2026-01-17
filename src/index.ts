@@ -128,6 +128,14 @@ export function startStudioControlPolling(
         if (ackValue?.id) {
           lastSeenId = ackValue.id;
         }
+        const stateRaw = await storage.getItem(resolved.stateKey);
+        const state = safeJsonParse<StudioControlState>(stateRaw);
+        const initRaw = await storage.getItem(resolved.commandKey);
+        const initParsed = safeJsonParse<StudioControlCommand>(initRaw);
+        if (isCommand(initParsed) && !lastSeenId && isState(state) && initParsed.ts <= state.ts) {
+          lastSeenId = initParsed.id;
+          await storage.setItem(resolved.ackKey, JSON.stringify({ id: initParsed.id, ts: Date.now() }));
+        }
         ackInitialized = true;
       }
       const raw = await storage.getItem(resolved.commandKey);
@@ -141,7 +149,11 @@ export function startStudioControlPolling(
         
       }
       await storage.setItem(resolved.ackKey, JSON.stringify({ id: parsed.id, ts: Date.now() }));
-      await storage.setItem(resolved.commandKey, '');
+      const currentRaw = await storage.getItem(resolved.commandKey);
+      const currentParsed = safeJsonParse<StudioControlCommand>(currentRaw);
+      if (currentParsed?.id === parsed.id) {
+        await storage.setItem(resolved.commandKey, '');
+      }
     } catch {
       
     } finally {
