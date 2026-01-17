@@ -1,10 +1,11 @@
+import * as FileSystem from 'expo-file-system';
+
 import type {
   StudioControlAction,
   StudioControlCommand,
   StudioControlOptions,
   StudioControlPoller,
   StudioControlState,
-  StudioControlStorage,
 } from './types';
 
 export type {
@@ -13,13 +14,13 @@ export type {
   StudioControlOptions,
   StudioControlPoller,
   StudioControlState,
-  StudioControlStorage,
 } from './types';
 
 const DEFAULT_COMMAND_KEY = 'comerge:studio-control:command';
 const DEFAULT_ACK_KEY = 'comerge:studio-control:ack';
 const DEFAULT_STATE_KEY = 'comerge:studio-control:state';
 const DEFAULT_INTERVAL_MS = 300;
+const DEFAULT_STORAGE_FILE = 'comerge-studio-control.json';
 
 type ResolvedOptions = Required<
   Pick<StudioControlOptions, 'commandKey' | 'ackKey' | 'stateKey' | 'intervalMs'>
@@ -35,6 +36,50 @@ function resolveOptions(options?: StudioControlOptions): ResolvedOptions {
     source: options?.source,
   };
 }
+
+function getStorageFile(): FileSystem.File {
+  const dir = FileSystem.Paths.document;
+  if (!dir?.uri) {
+    throw new Error('expo-file-system is required (document directory is unavailable).');
+  }
+  return new FileSystem.File(dir, DEFAULT_STORAGE_FILE);
+}
+
+async function readStore(): Promise<Record<string, string>> {
+  try {
+    const file = getStorageFile();
+    if (!file.exists) return {};
+    const raw = await file.text();
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeStore(store: Record<string, string>): Promise<void> {
+  try {
+    const file = getStorageFile();
+    if (!file.exists) {
+      file.create({ intermediates: true, overwrite: true });
+    }
+    file.write(JSON.stringify(store), { encoding: 'utf8' });
+  } catch {
+    
+  }
+}
+
+const storage = {
+  async getItem(key: string): Promise<string | null> {
+    const store = await readStore();
+    const value = store[key];
+    return typeof value === 'string' ? value : null;
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    const store = await readStore();
+    store[key] = value;
+    await writeStore(store);
+  },
+};
 
 function createCommand(action: StudioControlAction, source?: string): StudioControlCommand {
   const ts = Date.now();
@@ -73,7 +118,6 @@ function isState(value: unknown): value is StudioControlState {
 }
 
 async function writeCommand(
-  storage: StudioControlStorage,
   action: StudioControlAction,
   options?: StudioControlOptions
 ): Promise<void> {
@@ -86,29 +130,19 @@ async function writeCommand(
   }
 }
 
-export async function showComergeStudioUI(
-  storage: StudioControlStorage,
-  options?: StudioControlOptions
-): Promise<void> {
-  await writeCommand(storage, 'show', options);
+export async function showComergeStudioUI(options?: StudioControlOptions): Promise<void> {
+  await writeCommand('show', options);
 }
 
-export async function hideComergeStudioUI(
-  storage: StudioControlStorage,
-  options?: StudioControlOptions
-): Promise<void> {
-  await writeCommand(storage, 'hide', options);
+export async function hideComergeStudioUI(options?: StudioControlOptions): Promise<void> {
+  await writeCommand('hide', options);
 }
 
-export async function toggleComergeStudioUI(
-  storage: StudioControlStorage,
-  options?: StudioControlOptions
-): Promise<void> {
-  await writeCommand(storage, 'toggle', options);
+export async function toggleComergeStudioUI(options?: StudioControlOptions): Promise<void> {
+  await writeCommand('toggle', options);
 }
 
 export function startStudioControlPolling(
-  storage: StudioControlStorage,
   onCommand: (action: StudioControlAction, command: StudioControlCommand) => void,
   options?: StudioControlOptions
 ): StudioControlPoller {
@@ -172,7 +206,6 @@ export function startStudioControlPolling(
 }
 
 export async function publishComergeStudioUIState(
-  storage: StudioControlStorage,
   open: boolean,
   options?: StudioControlOptions
 ): Promise<void> {
@@ -190,7 +223,6 @@ export async function publishComergeStudioUIState(
 }
 
 export async function isComergeStudioUIShown(
-  storage: StudioControlStorage,
   options?: StudioControlOptions
 ): Promise<boolean | null> {
   const resolved = resolveOptions(options);

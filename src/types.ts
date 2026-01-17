@@ -13,11 +13,6 @@ export type StudioControlState = {
   source?: string;
 };
 
-export type StudioControlStorage = {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-};
-
 export type StudioControlOptions = {
   commandKey?: string;
   ackKey?: string;
