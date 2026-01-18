@@ -235,3 +235,5 @@ export async function isComergeStudioUIShown(
     return null;
   }
 }
+
+// TODO: use react-native-mmkv later if we want high-freq multi-writer control signals. For now this is fine.
